@@ -22,6 +22,11 @@ classifiers = [
 [project.scripts]
 codex-auto-compute = "codex_auto_compute.cli:main"
 
+[project.urls]
+Homepage = "https://github.com/a-ghanim/codex-auto-compute"
+Repository = "https://github.com/a-ghanim/codex-auto-compute"
+Issues = "https://github.com/a-ghanim/codex-auto-compute/issues"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/codex_auto_compute"]
 
