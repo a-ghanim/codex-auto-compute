@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import queue
+import re
 import shlex
 import shutil
 import subprocess
@@ -112,6 +113,33 @@ class RPC:
 def model_id(entry: dict) -> str:
     return str(entry.get("model") or entry.get("id") or "")
 
+
+def model_tier(entry: dict) -> str | None:
+    """Use catalog descriptions when available; names are only a compatibility fallback.
+
+    The catalog has no price or quality score. Ambiguous entries are excluded.
+    """
+    description = str(entry.get("description") or "").lower()
+    name = model_id(entry).lower()
+    if "frontier" in description or "most demanding" in description:
+        return "frontier"
+    if "fast" in description and any(word in description for word in ("affordable", "efficient", "easier")):
+        return "quick"
+    if any(word in description for word in ("workhorse", "balanced model", "coding model")):
+        return "strong"
+    if name.endswith("-astra"):
+        return "frontier"
+    if name.endswith("-luna"):
+        return "quick"
+    if name.endswith("-sol") or name == "gpt-5.6":
+        return "strong"
+    return None
+
+
+def model_recency(entry: dict) -> tuple[int, ...]:
+    numbers = re.findall(r"\d+", model_id(entry))
+    return tuple(int(n) for n in numbers[:3]) or (0,)
+
 def effort(entry: dict, wanted: str) -> str:
     options = []
     for e in entry.get("supportedReasoningEfforts", []):
@@ -121,27 +149,38 @@ def effort(entry: dict, wanted: str) -> str:
         raise ValueError(f"No supported-effort metadata for {model_id(entry)}; refusing to guess")
     if wanted in options:
         return wanted
-    default = entry.get("defaultReasoningEffort")
-    if default in options:
-        return str(default)
-    for value in ("medium", "high", "low", "xhigh", "max", "minimal", "none"):
+    alternatives = {"low": ("minimal",), "high": ("xhigh", "max", "ultra"),
+                    "xhigh": ("max", "ultra")}.get(wanted, ())
+    for value in alternatives:
         if value in options:
             return value
-    raise ValueError(f"Unknown effort options for {model_id(entry)}")
+    raise ValueError(f"No compatible {wanted} effort for {model_id(entry)}; refusing to degrade the role")
 
-def select_policy(entries: list[dict]) -> dict:
-    catalog = {model_id(e): e for e in entries if isinstance(e, dict) and not e.get("hidden", False)}
-    def pick(names: tuple[str, ...], required: bool = True):
-        for name in names:
-            if name in catalog:
-                return catalog[name]
+def select_policy(entries: list[dict], previous: dict | None = None) -> dict:
+    catalog = {model_id(e): e for e in entries if isinstance(e, dict) and not e.get("hidden", False) and model_id(e)}
+    old_roles = previous.get("roles", {}) if isinstance(previous, dict) else {}
+    def pick(tier: str, old_role: str | None = None, required: bool = True):
+        old_name = old_roles.get(old_role, {}).get("model") if isinstance(old_roles, dict) and old_role else None
+        required_efforts = ("low",) if tier in ("quick", "frontier") else ("medium", "high")
+        def compatible(entry):
+            try:
+                for required_effort in required_efforts:
+                    effort(entry, required_effort)
+                return True
+            except ValueError:
+                return False
+        if old_name in catalog and model_tier(catalog[old_name]) == tier and compatible(catalog[old_name]):
+            return catalog[old_name]
+        options = [e for e in catalog.values() if model_tier(e) == tier and compatible(e)]
+        if options:
+            # Prefer current catalog generations; preserve existing pins above.
+            return max(options, key=lambda e: (model_recency(e), "older" not in str(e.get("description", "")).lower()))
         if required:
-            raise ValueError("No recognized available model for this role. Inspect the live catalog; "
-                             "do not silently substitute an expensive parent model.")
+            raise ValueError(f"No unambiguous available {tier} model in the live catalog; refusing to guess")
         return None
-    cheap = pick(("gpt-6-luna", "gpt-5.6-luna"))
-    strong = pick(("gpt-6-sol", "gpt-5.6-sol", "gpt-5.6"))
-    frontier = pick(("gpt-6-astra",), False)
+    cheap = pick("quick", "ac_quick")
+    strong = pick("strong", "ac_execute")
+    frontier = pick("frontier", "ac_frontier", False) if not previous or "ac_frontier" in old_roles else None
     def pin(entry, wanted, description, read_only=False):
         return {"model": model_id(entry), "effort": effort(entry, wanted),
                 "description": description, "read_only": read_only}
@@ -149,12 +188,15 @@ def select_policy(entries: list[dict]) -> dict:
         "ac_quick": pin(cheap, "low", "Narrow extraction, mechanical transformations, and settled routine work."),
         "ac_execute": pin(strong, "medium", "Well-specified implementation, ordinary debugging, and substantive synthesis."),
         "ac_diagnose": pin(strong, "high", "Ambiguous diagnosis, architecture, conflicting evidence, and consequential reasoning."),
-        "ac_deep": pin(strong, "xhigh", "Bounded difficult reasoning after a distinct lower-effort approach failed."),
         "ac_review": pin(strong, "high", "Independent evidence-based review of consequential or poorly testable results.", True),
     }
+    try:
+        roles["ac_deep"] = pin(strong, "xhigh", "Bounded difficult reasoning after a distinct lower-effort approach failed.")
+    except ValueError:
+        pass
     if frontier:
         roles["ac_frontier"] = pin(frontier, "low", "One bounded frontier attempt on a demonstrated hard reasoning problem.", True)
-    return {"version": "0.2.0", "selection_policy": "Conservative provisional routing until comparable outcomes and attributable costs exist",
+    return {"version": "0.3.0", "selection_policy": "Conservative provisional routing until comparable outcomes and attributable costs exist",
             "coordinator": {"model": model_id(strong), "effort": effort(strong, "medium")},
             "roles": roles, "max_worker_launches_per_turn": 4, "checkpoint_every_tools": 8,
             "billing_cap": None, "live_routing_verified": False}

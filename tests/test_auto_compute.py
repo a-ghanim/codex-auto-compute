@@ -42,10 +42,15 @@ class ModelTests(unittest.TestCase):
         c = catalog(); c[0]["supportedReasoningEfforts"] = []
         with self.assertRaises(ValueError):
             I.select_policy(c)
-    def test_unsupported_effort_falls_back_to_actual_supported_default(self):
+    def test_unsupported_effort_does_not_silently_degrade(self):
         c = catalog()[0]
         c["supportedReasoningEfforts"] = [{"reasoningEffort": "medium"}]
-        self.assertEqual(I.effort(c, "xhigh"), "medium")
+        with self.assertRaises(ValueError):
+            I.effort(c, "xhigh")
+    def test_deep_effort_can_use_stronger_supported_value(self):
+        c = catalog()[0]
+        c["supportedReasoningEfforts"] = [{"reasoningEffort": "max"}]
+        self.assertEqual(I.effort(c, "xhigh"), "max")
     def test_hidden_models_not_chosen(self):
         c = catalog(); c[0]["hidden"] = True
         with self.assertRaises(ValueError):

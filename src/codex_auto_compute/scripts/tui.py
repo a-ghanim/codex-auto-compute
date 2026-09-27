@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import curses
+import os
 from pathlib import Path
 import sys
+import threading
 import time
 
 from . import status
+from .. import maintenance
 
 
 def sessions(rows: list[dict]) -> list[tuple[str, list[dict]]]:
@@ -87,7 +90,7 @@ def _put(win, y: int, x: int, value: str, width: int, style: int = 0) -> None:
             pass
 
 
-def _draw(win, ledger: Path, selected_session: int, selected_phase: int, rows: list[dict], last_read: float) -> None:
+def _draw(win, ledger: Path, selected_session: int, selected_phase: int, rows: list[dict], health_report: dict) -> None:
     win.erase()
     height, width = win.getmaxyx()
     if height < 16 or width < 64:
@@ -98,7 +101,12 @@ def _draw(win, ledger: Path, selected_session: int, selected_phase: int, rows: l
     left = min(34, max(25, width // 3))
     title = "AUTO COMPUTE  /  ROUTING LEDGER"
     _put(win, 0, 2, title, width-4, curses.A_BOLD)
-    _put(win, 1, 2, "Observed runtime evidence · read only · refreshes every 2s", width-4)
+    age = health_report.get("age_seconds")
+    age_text = "no ledger records" if age is None else f"last record {age//60}m ago"
+    catalog = health_report.get("catalog", "unavailable")
+    warning = " · run codex-auto-compute refresh" if catalog == "needs_refresh" else ""
+    telemetry = health_report.get("telemetry", "unknown")
+    _put(win, 1, 2, f"Catalog: {catalog} · telemetry: {telemetry} · {age_text}{warning}", width-4)
     win.hline(2, 0, curses.ACS_HLINE, width)
     _put(win, 3, 2, "SESSIONS (newest first)", left-3, curses.A_BOLD)
     win.vline(3, left, curses.ACS_VLINE, height-5)
@@ -134,14 +142,33 @@ def _run(win, ledger: Path) -> None:
     selected_phase = 0
     rows: list[dict] = []
     last_read = 0.0
+    last_health = 0.0
+    health_report: dict = {"catalog": "checking", "age_seconds": None}
+    health_pending = False
+    def check_catalog() -> None:
+        nonlocal health_pending
+        try:
+            home = Path(os.environ.get("CODEX_HOME", "~/.codex")).expanduser()
+            checked = maintenance.health(home)
+            health_report["catalog"] = checked.get("catalog", "unavailable")
+        except Exception:
+            health_report["catalog"] = "unavailable"
+        finally:
+            health_pending = False
     while True:
         now = time.monotonic()
         if now-last_read >= 2:
             rows = status.read_rows(ledger)
             last_read = now
+            health_report.update(maintenance.ledger_age(ledger))
+            health_report["telemetry"] = maintenance.latest_telemetry(ledger)
+        if now-last_health >= 300 and not health_pending:
+            health_pending = True
+            last_health = time.monotonic()
+            threading.Thread(target=check_catalog, daemon=True).start()
         groups = sessions(rows)
         selected_session = min(selected_session, max(0, len(groups)-1))
-        _draw(win, ledger, selected_session, selected_phase, rows, last_read)
+        _draw(win, ledger, selected_session, selected_phase, rows, health_report)
         key = win.getch()
         if key in (ord("q"), 27):
             return
@@ -157,6 +184,7 @@ def _run(win, ledger: Path) -> None:
             selected_phase = next_phase_index(selected_phase, len(phases(groups[selected_session][1])), 1)
         elif key in (ord("r"), curses.KEY_RESIZE):
             last_read = 0
+            last_health = 0
 
 
 def main(ledger: Path) -> None:

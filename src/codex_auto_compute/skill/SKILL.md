@@ -27,6 +27,16 @@ for the installed roles (global: ~/.codex/auto-compute/policy.json; disposable f
 .codex/auto-compute/policy.json). Missing roles are unavailable, not invitations to
 invent model names. Routing is provisional until comparable outcomes and costs exist.
 
+In a fresh coordinator session, run `codex-auto-compute doctor` once before the first
+worker launch. This checks the installed pins against Codex's live model catalog.
+If it reports `needs_refresh`, run `codex-auto-compute refresh`: it chooses a clear
+successor, runs bounded live pin checks, and backs up managed files. Do not ask the
+user to choose models or run checks. A changed pin is unverified as a custom agent
+until a fresh worker phase confirms runtime metadata. Do not use changed pins in
+the current session; continue locally where possible and report that a fresh
+session is needed for routing. If the catalog cannot be checked or no clear
+successor exists, report routing unavailable instead of guessing.
+
 Use these roles, not a mandatory ladder:
 - ac_quick: narrow extraction, formatting, mechanical work, simple inspection.
 - ac_execute: well-specified implementation, ordinary debugging, synthesis.

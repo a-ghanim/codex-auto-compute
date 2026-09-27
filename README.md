@@ -36,6 +36,19 @@ codex-auto-compute tui
 
 `tui` opens a read-only, automatically refreshing terminal screen. Use up/down to choose a session, left/right to inspect worker phases, `r` to refresh, and `q` to quit. Run it in a terminal beside Codex CLI; Codex's own chat screen cannot embed another terminal application. `status` prints the latest recorded session when you need plain output. Both commands support `--ledger /path/to/ledger.jsonl` for a disposable fixture.
 
+## Model and telemetry changes
+
+```sh
+codex-auto-compute doctor
+codex-auto-compute refresh
+```
+
+The TUI checks the live Codex model catalog on launch and every five minutes, and labels the age of its ledger. `doctor` reports missing models or effort settings. `refresh` preserves valid pins, selects a successor only when the catalog clearly identifies the same role, runs a small direct CLI smoke check for each new pin, backs up managed files, then updates only those pins. It refuses edited agent files and separate main-model overrides. New custom-agent pins remain explicitly **unverified** until a fresh worker phase confirms runtime metadata; restart Codex after a refresh. A catalog with no clear successor blocks routing instead of guessing. New model releases do not automatically replace working pins.
+
+The coordinator skill instructs Codex to run the catalog check before its first worker launch in a fresh session and invoke `refresh` when a pin has disappeared. This is instruction-driven, so `doctor` is also available as a deterministic CLI check. A changed pin is used only in a new session. The refresh probe verifies the **observed** direct CLI model and effort from Codex's runtime record; the subsequent custom-agent invocation still needs its own runtime match.
+
+This handles routine name changes without a hardcoded model-version list. It cannot guarantee compatibility with an undocumented future catalog or hook schema. Missing runtime telemetry is reported as unknown, and old ledger entries are labeled historical rather than live.
+
 The views show requested or observed model and effort, objective check labels, available token totals, and clear unknowns. The main chat's token total includes worker usage; do not add it to worker totals. The ledger is local at `~/.codex/auto-compute/ledger/ledger.jsonl` and excludes raw task text.
 
 Codex rollout record structure is not a stable public API. Verify after Codex updates. Hook coverage is best effort, and this package has not been tested on another user's machine. The source is available under the MIT license.
