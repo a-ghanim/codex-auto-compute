@@ -39,6 +39,10 @@ def phase_label(row: dict) -> str:
     return f"{role}  unverified"
 
 
+def next_phase_index(current: int, count: int, delta: int) -> int:
+    return min(max(0, count - 1), max(0, current + delta))
+
+
 def detail_lines(rows: list[dict], phase_index: int) -> list[str]:
     if not rows:
         return ["No ledger records yet.", "Start a Codex task with trusted hooks."]
@@ -148,9 +152,9 @@ def _run(win, ledger: Path) -> None:
             selected_session = min(max(0, len(groups)-1), selected_session+1)
             selected_phase = 0
         elif key in (curses.KEY_LEFT, ord("h")):
-            selected_phase = max(0, selected_phase-1)
+            selected_phase = next_phase_index(selected_phase, len(phases(groups[selected_session][1])) if groups else 0, -1)
         elif key in (curses.KEY_RIGHT, ord("l")) and groups:
-            selected_phase = min(max(0, len(phases(groups[selected_session][1])-1), selected_phase+1))
+            selected_phase = next_phase_index(selected_phase, len(phases(groups[selected_session][1])), 1)
         elif key in (ord("r"), curses.KEY_RESIZE):
             last_read = 0
 

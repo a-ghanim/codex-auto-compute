@@ -7,6 +7,12 @@ from codex_auto_compute.scripts import tui
 
 
 class TuiDataTests(unittest.TestCase):
+    def test_phase_navigation_is_bounded(self):
+        self.assertEqual(tui.next_phase_index(0, 2, 1), 1)
+        self.assertEqual(tui.next_phase_index(1, 2, 1), 1)
+        self.assertEqual(tui.next_phase_index(1, 2, -1), 0)
+        self.assertEqual(tui.next_phase_index(0, 0, -1), 0)
+
     def test_sessions_newest_first_and_phase_completion_replaces_start(self):
         rows = [
             {"event": "phase_started", "session_id": "old", "phase_id": "p", "role": "ac_quick"},
