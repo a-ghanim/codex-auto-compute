@@ -1,3 +1,3 @@
 """Conservative, evidence-labeled Codex worker routing."""
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"

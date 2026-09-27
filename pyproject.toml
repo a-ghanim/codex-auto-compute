@@ -4,10 +4,11 @@ build-backend = "hatchling.build"
 
 [project]
 name = "codex-auto-compute"
-version = "0.1.0"
+version = "0.1.1"
 description = "Conservative Codex worker routing with local usage and outcome evidence"
 readme = "README.md"
 requires-python = ">=3.11"
+license = "MIT"
 keywords = ["codex", "subagents", "model-routing", "usage-tracking"]
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -31,4 +32,4 @@ Issues = "https://github.com/a-ghanim/codex-auto-compute/issues"
 packages = ["src/codex_auto_compute"]
 
 [tool.hatch.build.targets.sdist]
-include = ["/src", "/tests", "/README.md", "/INSTALL_FOR_CODEX.md", "/pyproject.toml"]
+include = ["/src", "/tests", "/README.md", "/INSTALL_FOR_CODEX.md", "/LICENSE", "/pyproject.toml"]

@@ -15,7 +15,7 @@ mkdir /tmp/auto-compute-fixture
 codex-auto-compute fixture /tmp/auto-compute-fixture
 ```
 
-Review the fixture's hooks through Codex `/hooks`. Run one bounded live task using two distinct worker pins with objective checks, then inspect the fixture ledger. The installer will refuse global application unless that ledger records both observed settings and passing checks. See [the full verification procedure](INSTALL_FOR_CODEX.md).
+Review the fixture's hooks through Codex `/hooks`. Run one bounded live task using two distinct worker pins with objective checks, then inspect the fixture ledger. The installer will refuse global application unless that ledger records both observed settings and passing checks. See [the full verification procedure](https://github.com/a-ghanim/codex-auto-compute/blob/main/INSTALL_FOR_CODEX.md).
 
 ```sh
 codex-auto-compute install --verified-fixture /tmp/auto-compute-fixture
@@ -35,4 +35,4 @@ codex-auto-compute status
 
 The status command shows recent workers in the latest recorded session, with requested or observed model and effort, objective check labels, available token totals, and clear unknowns. The main chat's token total includes worker usage; do not add it to worker totals. The ledger is local at `~/.codex/auto-compute/ledger/ledger.jsonl` and excludes raw task text.
 
-Codex rollout record structure is not a stable public API. Verify after Codex updates. Hook coverage is best effort, and this package has not been tested on another user's machine. No redistribution license has been selected yet.
+Codex rollout record structure is not a stable public API. Verify after Codex updates. Hook coverage is best effort, and this package has not been tested on another user's machine. The source is available under the MIT license.
