@@ -23,6 +23,10 @@ def read_rows(path: Path) -> list[dict]:
     return rows
 
 
+def default_ledger_path() -> Path:
+    return Path(os.environ.get("CODEX_HOME", "~/.codex")).expanduser() / "auto-compute" / "ledger" / "ledger.jsonl"
+
+
 def latest_session(rows: list[dict]) -> list[dict]:
     if not rows:
         return []
@@ -62,9 +66,8 @@ def render(rows: list[dict]) -> str:
 
 
 def main() -> None:
-    default = Path(os.environ.get("CODEX_HOME", "~/.codex")).expanduser() / "auto-compute" / "ledger" / "ledger.jsonl"
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--ledger", type=Path, default=default)
+    parser.add_argument("--ledger", type=Path, default=default_ledger_path())
     args = parser.parse_args()
     print(render(read_rows(args.ledger)))
 

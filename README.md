@@ -31,8 +31,11 @@ codex-auto-compute uninstall /absolute/path/to/manifest.json
 
 ```sh
 codex-auto-compute status
+codex-auto-compute tui
 ```
 
-The status command shows recent workers in the latest recorded session, with requested or observed model and effort, objective check labels, available token totals, and clear unknowns. The main chat's token total includes worker usage; do not add it to worker totals. The ledger is local at `~/.codex/auto-compute/ledger/ledger.jsonl` and excludes raw task text.
+`tui` opens a read-only, automatically refreshing terminal screen. Use up/down to choose a session, left/right to inspect worker phases, `r` to refresh, and `q` to quit. Run it in a terminal beside Codex CLI; Codex's own chat screen cannot embed another terminal application. `status` prints the latest recorded session when you need plain output. Both commands support `--ledger /path/to/ledger.jsonl` for a disposable fixture.
+
+The views show requested or observed model and effort, objective check labels, available token totals, and clear unknowns. The main chat's token total includes worker usage; do not add it to worker totals. The ledger is local at `~/.codex/auto-compute/ledger/ledger.jsonl` and excludes raw task text.
 
 Codex rollout record structure is not a stable public API. Verify after Codex updates. Hook coverage is best effort, and this package has not been tested on another user's machine. The source is available under the MIT license.

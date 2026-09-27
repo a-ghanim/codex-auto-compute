@@ -8,6 +8,7 @@ import sys
 
 from . import install
 from .scripts import status
+from .scripts import tui
 
 
 def main() -> None:
@@ -19,6 +20,8 @@ def main() -> None:
     apply = sub.add_parser("install", help="Apply after a checked live fixture")
     apply.add_argument("--verified-fixture", required=True, type=Path)
     sub.add_parser("status", help="Show the latest session's routing evidence")
+    dashboard = sub.add_parser("tui", help="Browse live routing evidence in the terminal")
+    dashboard.add_argument("--ledger", type=Path, default=status.default_ledger_path())
     uninstall = sub.add_parser("uninstall", help="Restore using the backup manifest")
     uninstall.add_argument("manifest", type=Path)
     args, rest = parser.parse_known_args()
@@ -29,6 +32,11 @@ def main() -> None:
     if args.command == "status":
         sys.argv = ["codex-auto-compute status", *rest]
         status.main()
+        return
+    if args.command == "tui":
+        if rest:
+            parser.error("unrecognized arguments: " + " ".join(rest))
+        tui.main(args.ledger)
         return
     if rest:
         parser.error("unrecognized arguments: " + " ".join(rest))

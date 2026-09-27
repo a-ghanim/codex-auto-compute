@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "codex-auto-compute"
-version = "0.1.1"
+version = "0.1.2"
 description = "Conservative Codex worker routing with local usage and outcome evidence"
 readme = "README.md"
 requires-python = ">=3.11"
