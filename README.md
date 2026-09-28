@@ -27,6 +27,42 @@ Review global hooks through `/hooks` and verify a fresh session. The installer s
 codex-auto-compute uninstall /absolute/path/to/manifest.json
 ```
 
+## Upgrade to 0.1.6
+
+0.1.6 reports a specific, bounded diagnostic when the live catalog check fails because the sandbox cannot initialize Codex's SQLite state. Retry the check through Codex's normal permission approval; the catalog remains unavailable until that retry succeeds.
+
+```sh
+python3 -m pip install --upgrade codex-auto-compute==0.1.6
+# For a uv tool installation: uv tool upgrade codex-auto-compute
+```
+
+A pip or uv package upgrade does **not** refresh the installed global `SKILL.md`. Existing installations must also copy the packaged skill into their Codex home. Run this with Python from the upgraded installation (for uv, use `uv run --with codex-auto-compute==0.1.6 python` in place of `python3`). It backs up an existing skill before replacing it:
+
+```sh
+python3 - <<'PY'
+from importlib.resources import as_file, files
+from pathlib import Path
+import os
+import shutil
+import uuid
+
+home = Path(os.environ.get("CODEX_HOME", "~/.codex")).expanduser()
+target = home / "skills" / "auto-compute" / "SKILL.md"
+source = files("codex_auto_compute").joinpath("skill", "SKILL.md")
+with as_file(source) as packaged_skill:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists():
+        backup = target.with_name(f"SKILL.md.backup-{uuid.uuid4().hex}")
+        shutil.copy2(target, backup)
+        print(f"Backup: {backup}")
+    shutil.copyfile(packaged_skill, target)
+print(f"Updated: {target}")
+PY
+codex-auto-compute doctor
+```
+
+Start a fresh Codex session to use the updated skill.
+
 ## See what ran
 
 ```sh

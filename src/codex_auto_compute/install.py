@@ -16,6 +16,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import tomllib
@@ -28,8 +29,15 @@ END = "<!-- auto-compute:end -->"
 class RPC:
     def __init__(self, binary: str, home: Path):
         env = dict(os.environ, CODEX_HOME=str(home))
-        self.proc = subprocess.Popen([binary, "app-server"], stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1, env=env)
+        # A file avoids stderr pipe backpressure; only a bounded tail is inspected.
+        # Never expose arbitrary server stderr (it can contain private data).
+        self.stderr = tempfile.TemporaryFile()
+        try:
+            self.proc = subprocess.Popen([binary, "app-server"], stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE, stderr=self.stderr, text=True, bufsize=1, env=env)
+        except Exception:
+            self.stderr.close()
+            raise
         self.messages: queue.Queue = queue.Queue()
         self.seq = 0
         def reader():
@@ -57,15 +65,18 @@ class RPC:
     def call(self, method: str, params: dict, timeout: int = 30) -> dict:
         self.seq += 1
         rid = self.seq
-        self.send({"id": rid, "method": method, "params": params})
+        try:
+            self.send({"id": rid, "method": method, "params": params})
+        except BrokenPipeError as exc:
+            raise self.failure(method, f"Codex app-server exited during {method}") from exc
         until = time.monotonic() + timeout
         while time.monotonic() < until:
             try:
                 msg = self.messages.get(timeout=max(0.01, until-time.monotonic()))
             except queue.Empty as exc:
-                raise RuntimeError(f"Codex timed out during {method}") from exc
+                raise self.failure(method, f"Codex timed out during {method}") from exc
             if msg is None:
-                raise RuntimeError(f"Codex app-server exited during {method}")
+                raise self.failure(method, f"Codex app-server exited during {method}")
             if msg.get("method") and "id" in msg:
                 # Metadata operations should never request a tool execution. Fail
                 # explicitly; do not auto-approve or invent an auth response.
@@ -79,7 +90,23 @@ class RPC:
                 if not isinstance(result, dict):
                     raise RuntimeError(f"Unexpected result from {method}")
                 return result
-        raise RuntimeError(f"Codex timed out during {method}")
+        raise self.failure(method, f"Codex timed out during {method}")
+
+    def failure(self, method: str, fallback: str) -> RuntimeError:
+        if method == "initialize":
+            try:
+                fd = self.stderr.fileno()
+                size = os.fstat(fd).st_size
+                # pread leaves the subprocess's shared file offset untouched.
+                tail = os.pread(fd, 16384, max(0, size - 16384)).decode("utf-8", errors="replace").lower()
+            except (OSError, ValueError):
+                tail = ""
+            if ("failed to initialize sqlite state runtime" in tail
+                    and any(marker in tail for marker in ("operation not permitted", "permission denied"))):
+                return RuntimeError("Codex app-server could not initialize its SQLite state runtime: "
+                    "permission denied. Retry doctor through the tool's normal permission approval "
+                    "if available; do not bypass permissions. Live catalog remains unavailable.")
+        return RuntimeError(fallback)
 
     def catalog(self) -> list[dict]:
         items, cursor, seen = [], None, set()
@@ -106,9 +133,13 @@ class RPC:
                 self.proc.kill()
                 self.proc.wait(timeout=3)
         if self.proc.stdin:
-            self.proc.stdin.close()
+            try:
+                self.proc.stdin.close()
+            except BrokenPipeError:
+                pass
         if self.proc.stdout:
             self.proc.stdout.close()
+        self.stderr.close()
 
 def model_id(entry: dict) -> str:
     return str(entry.get("model") or entry.get("id") or "")

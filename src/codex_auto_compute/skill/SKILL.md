@@ -29,6 +29,14 @@ invent model names. Routing is provisional until comparable outcomes and costs e
 
 In a fresh coordinator session, run `codex-auto-compute doctor` once before the first
 worker launch. This checks the installed pins against Codex's live model catalog.
+If doctor specifically reports that the app-server could not initialize its SQLite
+state runtime because permission was denied, retry doctor once through the tool's
+normal permission approval if available. Never bypass permissions, alter persistent
+sandbox or approval settings, or auto-approve the retry. If approval is denied or unavailable,
+continue locally where possible and report this precise prerequisite blocker once.
+A failed catalog check means pin validity is unknown; do not treat it as invalid
+pins or use a stale catalog as current. Other catalog failures remain unavailable
+and do not trigger this permission retry.
 If it reports `needs_refresh`, run `codex-auto-compute refresh`: it chooses a clear
 successor, runs bounded live pin checks, and backs up managed files. Do not ask the
 user to choose models or run checks. A changed pin is unverified as a custom agent
